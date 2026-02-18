@@ -1,0 +1,301 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AuditRecord {
+  id             String   @id @default(cuid())
+  accountNo      String
+
+  // القراءة الحالية (من input)
+  currentRead    Int?
+  currentDate    String?
+
+  // القراءة اللاحقة (من master.prevRead)
+  lastRead       Int?
+  lastDate       String?
+
+  // القراءة السابقة (من master.lastRead)
+  prevRead       Int?
+  prevDate       String?
+
+  diff           Int?
+  days           Int?
+  dailyRate      Float?
+  subscriberName String?
+  meterNo        String?
+  sector         Int?
+  region         Int?
+  custCode       Int?
+  custType       String?
+  enterName      String?
+  statusCode     Int
+  statusDesc     String
+  isAccepted     Boolean  @default(false)
+  needsReview    Boolean  @default(false)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([sector])
+  @@index([enterName])
+  @@index([statusCode])
+  @@index([accountNo])
+}
+
+model Cobill {
+  id         String   @id @default(cuid())
+  accountNo  String
+  name       String?
+  serialNo   Int?
+  meterNo    Float?
+  lastRead   Float?
+  lastDate   String?
+  prevRead   Float?
+  prevDate   String?
+  prevOuts   Int?
+  outs       Int?
+  billDate   String?
+  avgConsum  Int?
+  avgDt      String?
+  facter     Int?
+  cust       Float?
+  instalNo   Int?
+  sector     Int?
+  region     Int?
+  streetNo   Int?
+  houseNo    String?
+  streetName Int?
+  address    String?
+  cons1      Int?
+  conp1      Int?
+  cons2      Int?
+  conp2      Int?
+  cons3      Int?
+  conp3      Int?
+  priod      Int?
+  meterType  String?
+  masterId   String?
+  createdAt  DateTime @default(now())
+  Master     Master?  @relation(fields: [masterId], references: [id])
+
+  @@index([accountNo])
+}
+
+model CodeRem {
+  id        String   @id @default(cuid())
+  code      Int      @unique
+  desc      String
+  createdAt DateTime @default(now())
+}
+
+model CustType {
+  id        String   @id @default(cuid())
+  code      Int      @unique
+  desc      String
+  createdAt DateTime @default(now())
+}
+
+model ImportedFile {
+  id          String   @id @default(cuid())
+  fileName    String
+  fileSize    Int
+  fileType    String
+  tableType   String
+  recordCount Int
+  createdAt   DateTime @default(now())
+}
+
+model Input {
+  id           String   @id @default(cuid())
+  accountNo    String
+  type         Int?
+  read         Int?
+  readDate     String?
+  enterDate    String?
+  enterName    String?
+  meter        Float?
+  meterOld     Int?
+  amount       Int?
+  custCode     Int?
+  sector       Float?
+  endTime      String?
+  serial       Float?
+  name         Float?
+  streetNo     Float?
+  streetName   Float?
+  houseNo      Float?
+  address      Float?
+  meterDate    Float?
+  cust         Float?
+  overType     Float?
+  overTypeN    Int?
+  avgConsum    Float?
+  avgDt        Float?
+  instalNo     Float?
+  facter       Float?
+  unit1        Int?
+  unitp1       Int?
+  unit2        Int?
+  unitp2       Int?
+  unit3        Int?
+  unitp3       Int?
+  unit4        Int?
+  unitp4       Int?
+  unit5        Int?
+  unitp5       Int?
+  unit6        Int?
+  unitp6       Int?
+  unit7        Int?
+  unitp7       Int?
+  unit8        Int?
+  unitp8       Int?
+  unit9        Int?
+  unitp9       Int?
+  txtUser      Float?
+  txtUserN     Int?
+  txtRead      Float?
+  txtReadN     Int?
+  optionN      Int?
+  txtCentA     Float?
+  trnsRent     Float?
+  trnsRentDate Float?
+  phase        Float?
+  masterId     String?
+  createdAt    DateTime @default(now())
+  Master       Master?  @relation(fields: [masterId], references: [id])
+
+  @@index([enterName])
+  @@index([accountNo])
+}
+
+model Master {
+  id            String   @id @default(cuid())
+  accountNo     String   @unique
+  oldAccount    Float?
+  oldAccountAgg Float?
+  accountNoBef  String?
+  accountOldCom String?
+  region        Int?
+  sect          Int?
+  state         Int?
+  serial        Float?
+  name          String?
+  phase         Int?
+  houseNo       String?
+  address       String?
+  street        Float?
+  streetNo      Float?
+  houseNo2      String?
+  address2      String?
+  meter         Float?
+  meterDate     String?
+  facter        Int?
+  oldExch       String?
+  fee           Float?
+  outs          Float?
+  cust          Float?
+  custNew       Int?
+  instalNo      Int?
+  lastRead      Float?
+  lastDate      String?
+  prevRead      Float?
+  prevDate      String?
+  billDate      String?
+  def           Float?
+  payment       Float?
+  payDate       String?
+  out1517       Float?
+  badMtr        Float?
+  note          String?
+  prevOuts      Float?
+  consum1       Int?
+  period1       Int?
+  consum2       Int?
+  period2       Int?
+  consum3       Int?
+  period3       Int?
+  consum4       Int?
+  period4       Int?
+  consum5       Int?
+  period5       Int?
+  consum6       Int?
+  period6       Int?
+  consum7       Int?
+  period7       Int?
+  consum8       Int?
+  period8       Int?
+  consum9       Int?
+  period9       Int?
+  consum10      Int?
+  period10      Int?
+  consum11      Int?
+  period11      Int?
+  consum12      Int?
+  period12      Int?
+  outsBf        Float?
+  outsBef17     Float?
+  avgConsum     Int?
+  sector        Int?
+  overType      Float?
+  overTypeN     Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  Cobill        Cobill[]
+  Input         Input[]
+  Output        Output[]
+
+  @@index([sect])
+  @@index([region])
+  @@index([accountNo])
+}
+
+model Output {
+  id         String   @id @default(cuid())
+  accountNo  String
+  name       String?
+  read       Float?
+  readDate   String?
+  prevRead   Float?
+  prevDate   String?
+  closeRead  Int?
+  codeRemr   Int?
+  region     Int?
+  sect       Int?
+  type       Int?
+  serial     Int?
+  streetNo   Int?
+  streetName Int?
+  houseNo    Int?
+  address    String?
+  meter      Float?
+  oldMeter   Float?
+  facter     Int?
+  phase      Float?
+  custCode   Int?
+  cust       Float?
+  amount     Int?
+  amountBef  Int?
+  amountAll  Int?
+  avgConsum  Float?
+  avgDt      String?
+  instalNo   Int?
+  enterName  String?
+  enterDate  String?
+  closeDate  Float?
+  outs       Int?
+  sector     Int?
+  dailyCon   Int?
+  priod      Int?
+  billDate   String?
+  meterType  String?
+  masterId   String?
+  createdAt  DateTime @default(now())
+  Master     Master?  @relation(fields: [masterId], references: [id])
+
+  @@index([accountNo])
+}

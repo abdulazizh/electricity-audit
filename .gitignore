@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+
+# Build
+.next/
+
+<<<<<<< HEAD
+=======
+# Database
+db/*.db
+db/*.db-journal
+
+>>>>>>> 1026bf9d709369dfd076dfe8f3616257c784758b
+# Uploads
+upload/
+uploads/
+
+# Logs
+*.log
+dev.log
+
+# Download
+download/
+
+<<<<<<< HEAD
+=======
+# Environment
+.env
+
+>>>>>>> 1026bf9d709369dfd076dfe8f3616257c784758b
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+check-*.mjs
+run-*.mjs
+*.ts.backup
+
+# Skills (not needed for deployment)
+skills/
+
+# Examples
+examples/
+
+# Scripts
+.zscripts/
+mini-services/
+generate-test-data.ts
+Caddyfile
+.dockerignore
