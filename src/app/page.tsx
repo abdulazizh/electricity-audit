@@ -530,7 +530,7 @@ export default function Home() {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: '50',
-        statusCode: auditFilter === 'all' ? '' : auditFilter,
+        statusCode: auditFilter,
         search: auditSearch,
         sort: auditSort
       })
@@ -1499,6 +1499,7 @@ export default function Home() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">جميع الحالات</SelectItem>
+                        <SelectItem value="needsReview">يحتاج مراجعة</SelectItem>
                         <SelectItem value="0">مقبول</SelectItem>
                         <SelectItem value="2">مرفوض</SelectItem>
                         <SelectItem value="6">عالي مرفوض</SelectItem>
@@ -1573,7 +1574,6 @@ export default function Home() {
                             <TableHead className="font-bold whitespace-nowrap">الفرق</TableHead>
                             <TableHead className="font-bold whitespace-nowrap">الأيام</TableHead>
                             <TableHead className="font-bold whitespace-nowrap">معدل يومي</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap">الاسم</TableHead>
                             <TableHead className="font-bold whitespace-nowrap">الموظف</TableHead>
                             <TableHead className="font-bold whitespace-nowrap">الحالة</TableHead>
                           </TableRow>
@@ -1592,7 +1592,6 @@ export default function Home() {
                               </TableCell>
                               <TableCell>{r.days || '-'}</TableCell>
                               <TableCell>{r.dailyRate?.toFixed(1) || '-'}</TableCell>
-                              <TableCell className="max-w-[150px] truncate">{r.subscriberName || '-'}</TableCell>
                               <TableCell>{r.enterName || '-'}</TableCell>
                               <TableCell>
                                 <Badge className={statusColors[r.statusCode] || 'bg-gray-100'}>

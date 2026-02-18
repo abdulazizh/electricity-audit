@@ -64,27 +64,90 @@ function calculateDays(date1: string | null, date2: string | null): number | nul
   }
 }
 
+// حساب معدل آخر 3 استهلاكات
+function calculateAvgLast3Consumption(master: {
+  consum1: number | null;
+  period1: number | null;
+  consum2: number | null;
+  period2: number | null;
+  consum3: number | null;
+  period3: number | null;
+} | null | undefined): number | null {
+  if (!master) return null;
+  
+  let totalConsum = 0;
+  let totalPeriod = 0;
+  let count = 0;
+  
+  // الاستهلاك الأول
+  if (master.consum1 && master.period1 && master.consum1 > 0 && master.period1 > 0) {
+    totalConsum += master.consum1;
+    totalPeriod += master.period1;
+    count++;
+  }
+  // الاستهلاك الثاني
+  if (master.consum2 && master.period2 && master.consum2 > 0 && master.period2 > 0) {
+    totalConsum += master.consum2;
+    totalPeriod += master.period2;
+    count++;
+  }
+  // الاستهلاك الثالث
+  if (master.consum3 && master.period3 && master.consum3 > 0 && master.period3 > 0) {
+    totalConsum += master.consum3;
+    totalPeriod += master.period3;
+    count++;
+  }
+  
+  if (count === 0 || totalPeriod === 0) return null;
+  return totalConsum / count; // معدل الاستهلاك الشهري
+}
+
 function determineStatus(
   currentRead: number | null,
   currentDate: string | null,
   prevRead: number | null,
   prevDate: string | null,
   diff: number | null,
-  dailyRate: number | null
-): { code: number; desc: string; isAccepted: boolean; needsReview: boolean } {
-  if (!currentDate) return { code: 12, ...AUDIT_STATUS[12] };
-  if (currentRead === null || currentRead === undefined) return { code: 1, ...AUDIT_STATUS[1] };
-  if (prevRead === null || prevRead === undefined) return { code: 0, ...AUDIT_STATUS[0] };
-  if (!prevDate) return { code: 12, ...AUDIT_STATUS[12] };
+  dailyRate: number | null,
+  avgLast3Consumption: number | null,
+  custCode: number | null
+): { code: number; desc: string; isAccepted: boolean; needsReview: boolean; adjustedDiff: number | null } {
+  
+  let adjustedDiff = diff;
+  
+  // التحقق من التواريخ أولاً
+  if (!currentDate) return { code: 12, ...AUDIT_STATUS[12], adjustedDiff };
+  if (currentRead === null || currentRead === undefined) return { code: 1, ...AUDIT_STATUS[1], adjustedDiff };
+  if (prevRead === null || prevRead === undefined) return { code: 0, ...AUDIT_STATUS[0], adjustedDiff };
+  if (!prevDate) return { code: 12, ...AUDIT_STATUS[12], adjustedDiff };
   
   const daysCalc = calculateDays(prevDate, currentDate);
-  if (daysCalc !== null && daysCalc < 0) return { code: 14, ...AUDIT_STATUS[14] };
-  if (currentRead === prevRead && daysCalc === 0) return { code: 11, ...AUDIT_STATUS[11] };
-  if (diff !== null && diff < 0) return { code: 8, ...AUDIT_STATUS[8] };
-  if (dailyRate !== null && dailyRate > 100) return { code: 6, ...AUDIT_STATUS[6] };
-  if (dailyRate !== null && dailyRate > 50) return { code: 7, ...AUDIT_STATUS[7] };
+  if (daysCalc !== null && daysCalc < 0) return { code: 14, ...AUDIT_STATUS[14], adjustedDiff };
+  if (currentRead === prevRead && daysCalc === 0) return { code: 11, ...AUDIT_STATUS[11], adjustedDiff };
   
-  return { code: 0, ...AUDIT_STATUS[0] };
+  // الدورة في العداد - إضافة 99999 للفرق
+  if (diff !== null && diff < 0) {
+    adjustedDiff = diff + 99999;
+    return { code: 8, ...AUDIT_STATUS[8], adjustedDiff };
+  }
+  
+  // معدل آخر 3 استهلاكات > 11 -> عالي مرفوض
+  if (avgLast3Consumption !== null && avgLast3Consumption > 11) {
+    return { code: 6, ...AUDIT_STATUS[6], adjustedDiff };
+  }
+  
+  // المعدل اليومي > 300 -> عالي مرفوض (جميع الأصناف)
+  if (dailyRate !== null && dailyRate > 300) {
+    return { code: 6, ...AUDIT_STATUS[6], adjustedDiff };
+  }
+  
+  // الصنف المنزلي (1 أو 21) والمعدل اليومي > 150 -> عالي
+  const isResidential = custCode === 1 || custCode === 21;
+  if (isResidential && dailyRate !== null && dailyRate > 150) {
+    return { code: 7, ...AUDIT_STATUS[7], adjustedDiff };
+  }
+  
+  return { code: 0, ...AUDIT_STATUS[0], adjustedDiff };
 }
 
 export async function POST() {
@@ -136,11 +199,20 @@ export async function POST() {
       const prevDate = formatExcelDate(master?.prevDate);
 
       // الفرق بين الحالية والسابقة (الاستهلاك)
-      const diff = (currentRead !== null && prevRead !== null) ? currentRead - prevRead : null;
+      let diff = (currentRead !== null && prevRead !== null) ? currentRead - prevRead : null;
       const days = calculateDays(prevDate, currentDate);
       const dailyRate = (diff !== null && days !== null && days > 0) ? diff / days : null;
+      
+      // معدل آخر 3 استهلاكات
+      const avgLast3Consumption = calculateAvgLast3Consumption(master);
+      
+      // صنف المشترك
+      const custCode = input.custCode ?? master?.custCode ?? null;
 
-      const status = determineStatus(currentRead, currentDate, prevRead, prevDate, diff, dailyRate);
+      const status = determineStatus(currentRead, currentDate, prevRead, prevDate, diff, dailyRate, avgLast3Consumption, custCode);
+      
+      // استخدام الفرق المعدل (بعد إضافة 99999 للدورة)
+      const adjustedDiff = status.adjustedDiff;
 
       auditRecords.push({
         accountNo: input.accountNo,
@@ -148,15 +220,15 @@ export async function POST() {
         currentDate,
         prevRead,
         prevDate,
-        diff,
+        diff: adjustedDiff,
         days,
         dailyRate,
-        subscriberName: master?.name || null,
+        subscriberName: null, // تم حذف اسم المشترك
         meterNo: master?.meter?.toString() || null,
         sector: master?.sector ?? (input.sector as number) ?? null,
         region: master?.region ?? null,
-        custCode: input.custCode ?? master?.custCode ?? null,
-        custType: input.custCode ? custTypeMap.get(input.custCode) || null : null,
+        custCode: custCode,
+        custType: custCode ? custTypeMap.get(custCode) || null : null,
         enterName: input.enterName,
         statusCode: status.code,
         statusDesc: status.desc,
@@ -208,12 +280,18 @@ export async function GET(request: NextRequest) {
     const sort = searchParams.get('sort') || 'statusCode';
 
     const where: Record<string, unknown> = {};
-    if (statusCode) where.statusCode = parseInt(statusCode);
+    
+    // فلتر الحالة
+    if (statusCode === 'needsReview') {
+      where.needsReview = true;
+    } else if (statusCode) {
+      where.statusCode = parseInt(statusCode);
+    }
+    
     if (enterName) where.enterName = enterName;
     if (search) {
       where.OR = [
-        { accountNo: { contains: search } },
-        { subscriberName: { contains: search } }
+        { accountNo: { contains: search } }
       ];
     }
 
