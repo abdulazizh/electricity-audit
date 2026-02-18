@@ -255,6 +255,8 @@ export default function Home() {
   const [auditPagination, setAuditPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 })
   const [auditStats, setAuditStats] = useState<{total: number; accepted: number; needsReview: number} | null>(null)
   const [auditFilter, setAuditFilter] = useState('all')
+  const [auditSearch, setAuditSearch] = useState('')
+  const [auditSort, setAuditSort] = useState('statusCode')
 
   // Load stats
   const loadStats = useCallback(async () => {
@@ -528,7 +530,9 @@ export default function Home() {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: '50',
-        statusCode: auditFilter === 'all' ? '' : auditFilter
+        statusCode: auditFilter === 'all' ? '' : auditFilter,
+        search: auditSearch,
+        sort: auditSort
       })
 
       const res = await fetch(`/api/audit?${params}`)
@@ -543,7 +547,7 @@ export default function Home() {
     } finally {
       setLoading(false)
     }
-  }, [auditFilter])
+  }, [auditFilter, auditSearch, auditSort])
 
   // Clear data
   const clearData = useCallback(async () => {
@@ -604,6 +608,16 @@ export default function Home() {
       loadAuditData(1)
     }
   }, [activeTab, stats?.auditRecords, loadAuditData])
+
+  // Reload audit when search or sort changes
+  useEffect(() => {
+    if (activeTab === 'audit' && stats?.auditRecords) {
+      const timer = setTimeout(() => {
+        loadAuditData(1)
+      }, 300) // debounce 300ms
+      return () => clearTimeout(timer)
+    }
+  }, [auditSearch, auditSort])
 
   const hasMasterData = stats?.master && stats.master > 0
   const hasCobillData = stats?.cobill && stats.cobill > 0
@@ -1467,7 +1481,18 @@ export default function Home() {
             <div className="space-y-4">
               <Card className="shadow-sm">
                 <CardContent className="py-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex-1 min-w-[200px]">
+                      <div className="relative">
+                        <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                          placeholder="بحث برقم الحساب أو الاسم..."
+                          value={auditSearch}
+                          onChange={(e) => setAuditSearch(e.target.value)}
+                          className="ps-10"
+                        />
+                      </div>
+                    </div>
                     <Select value={auditFilter} onValueChange={setAuditFilter}>
                       <SelectTrigger className="w-40">
                         <SelectValue placeholder="جميع الحالات" />
@@ -1479,6 +1504,18 @@ export default function Home() {
                         <SelectItem value="6">عالي مرفوض</SelectItem>
                         <SelectItem value="7">عالي</SelectItem>
                         <SelectItem value="8">دورة</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={auditSort} onValueChange={setAuditSort}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="الفرز" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="statusCode">حسب الحالة</SelectItem>
+                        <SelectItem value="accountNo">حسب الحساب</SelectItem>
+                        <SelectItem value="dailyRate">حسب المعدل اليومي</SelectItem>
+                        <SelectItem value="diff">حسب الفرق</SelectItem>
+                        <SelectItem value="days">حسب الأيام</SelectItem>
                       </SelectContent>
                     </Select>
                     <Button variant="outline" size="sm" onClick={handleExport}>

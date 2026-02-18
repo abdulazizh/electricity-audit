@@ -205,6 +205,7 @@ export async function GET(request: NextRequest) {
     const statusCode = searchParams.get('statusCode');
     const enterName = searchParams.get('enterName');
     const search = searchParams.get('search');
+    const sort = searchParams.get('sort') || 'statusCode';
 
     const where: Record<string, unknown> = {};
     if (statusCode) where.statusCode = parseInt(statusCode);
@@ -216,10 +217,18 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    // تحديد ترتيب الفرز
+    let orderBy: Record<string, unknown> = { statusCode: 'asc' };
+    if (sort === 'accountNo') orderBy = { accountNo: 'asc' };
+    else if (sort === 'dailyRate') orderBy = { dailyRate: 'desc' };
+    else if (sort === 'diff') orderBy = { diff: 'desc' };
+    else if (sort === 'days') orderBy = { days: 'desc' };
+    else orderBy = { statusCode: 'asc' };
+
     const total = await prisma.auditRecord.count({ where });
     const records = await prisma.auditRecord.findMany({
       where,
-      orderBy: { statusCode: 'asc' },
+      orderBy,
       skip: (page - 1) * limit,
       take: limit
     });
