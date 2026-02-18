@@ -57,49 +57,41 @@ function calculateDays(date1: string | null, date2: string | null): number | nul
   try {
     const d1 = new Date(date1);
     const d2 = new Date(date2);
-    const diffTime = Math.abs(d2.getTime() - d1.getTime());
+    // نحسب الفرق بدون Math.abs لإرجاع قيمة سالبة إذا كان التاريخ الثاني أقل
+    const diffTime = d2.getTime() - d1.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   } catch {
     return null;
   }
 }
 
-// حساب معدل آخر 3 استهلاكات
-function calculateAvgLast3Consumption(master: {
+// حساب معدلات الاستهلاك الثلاثة (استهلاك / فترة)
+function calculateConsumptionRates(master: {
   consum1: number | null;
   period1: number | null;
   consum2: number | null;
   period2: number | null;
   consum3: number | null;
   period3: number | null;
-} | null | undefined): number | null {
-  if (!master) return null;
+} | null | undefined): { rate1: number | null; rate2: number | null; rate3: number | null } {
+  if (!master) return { rate1: null, rate2: null, rate3: null };
   
-  let totalConsum = 0;
-  let totalPeriod = 0;
-  let count = 0;
+  // المعدل 1 = استهلاك 1 / فترة 1 (المعدل اليومي)
+  const rate1 = (master.consum1 && master.period1 && master.period1 > 0) 
+    ? master.consum1 / master.period1 
+    : null;
   
-  // الاستهلاك الأول
-  if (master.consum1 && master.period1 && master.consum1 > 0 && master.period1 > 0) {
-    totalConsum += master.consum1;
-    totalPeriod += master.period1;
-    count++;
-  }
-  // الاستهلاك الثاني
-  if (master.consum2 && master.period2 && master.consum2 > 0 && master.period2 > 0) {
-    totalConsum += master.consum2;
-    totalPeriod += master.period2;
-    count++;
-  }
-  // الاستهلاك الثالث
-  if (master.consum3 && master.period3 && master.consum3 > 0 && master.period3 > 0) {
-    totalConsum += master.consum3;
-    totalPeriod += master.period3;
-    count++;
-  }
+  // المعدل 2 = استهلاك 2 / فترة 2
+  const rate2 = (master.consum2 && master.period2 && master.period2 > 0) 
+    ? master.consum2 / master.period2 
+    : null;
   
-  if (count === 0 || totalPeriod === 0) return null;
-  return totalConsum / count; // معدل الاستهلاك الشهري
+  // المعدل 3 = استهلاك 3 / فترة 3
+  const rate3 = (master.consum3 && master.period3 && master.period3 > 0) 
+    ? master.consum3 / master.period3 
+    : null;
+  
+  return { rate1, rate2, rate3 };
 }
 
 function determineStatus(
@@ -108,46 +100,73 @@ function determineStatus(
   prevRead: number | null,
   prevDate: string | null,
   diff: number | null,
-  dailyRate: number | null,
-  avgLast3Consumption: number | null,
-  custCode: number | null
-): { code: number; desc: string; isAccepted: boolean; needsReview: boolean; adjustedDiff: number | null } {
+  days: number | null,
+  dailyRate: number | null
+): { code: number; desc: string; isAccepted: boolean; needsReview: boolean; adjustedDiff: number | null; adjustedDailyRate: number | null } {
   
   let adjustedDiff = diff;
+  let adjustedDailyRate = dailyRate;
   
-  // التحقق من التواريخ أولاً
-  if (!currentDate) return { code: 12, ...AUDIT_STATUS[12], adjustedDiff };
-  if (currentRead === null || currentRead === undefined) return { code: 1, ...AUDIT_STATUS[1], adjustedDiff };
-  if (prevRead === null || prevRead === undefined) return { code: 0, ...AUDIT_STATUS[0], adjustedDiff };
-  if (!prevDate) return { code: 12, ...AUDIT_STATUS[12], adjustedDiff };
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 1. التحقق من وجود البيانات الأساسية
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (!currentDate) return { code: 12, ...AUDIT_STATUS[12], adjustedDiff, adjustedDailyRate };
+  if (currentRead === null || currentRead === undefined) return { code: 1, ...AUDIT_STATUS[1], adjustedDiff, adjustedDailyRate };
+  if (prevRead === null || prevRead === undefined) return { code: 0, ...AUDIT_STATUS[0], adjustedDiff, adjustedDailyRate };
+  if (!prevDate) return { code: 12, ...AUDIT_STATUS[12], adjustedDiff, adjustedDailyRate };
   
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 2. التحقق من التواريخ
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   const daysCalc = calculateDays(prevDate, currentDate);
-  if (daysCalc !== null && daysCalc < 0) return { code: 14, ...AUDIT_STATUS[14], adjustedDiff };
-  if (currentRead === prevRead && daysCalc === 0) return { code: 11, ...AUDIT_STATUS[11], adjustedDiff };
+  // إذا كان الأيام سالب، يعني تاريخ الحالية أقل من السابقة
+  if (daysCalc !== null && daysCalc < 0) {
+    return { code: 14, ...AUDIT_STATUS[14], adjustedDiff, adjustedDailyRate };
+  }
+  // تساوي القراءات وتاريخها
+  if (currentRead === prevRead && daysCalc === 0) {
+    return { code: 11, ...AUDIT_STATUS[11], adjustedDiff, adjustedDailyRate };
+  }
   
-  // الدورة في العداد - إضافة 99999 للفرق
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 3. التحقق من الدورة في العداد
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  let isCycle = false;
   if (diff !== null && diff < 0) {
+    // الدورة: إضافة 99999 للفرق
     adjustedDiff = diff + 99999;
-    return { code: 8, ...AUDIT_STATUS[8], adjustedDiff };
+    isCycle = true;
+    // إعادة حساب المعدل اليومي بالفرق المعدل
+    if (days !== null && days > 0) {
+      adjustedDailyRate = adjustedDiff / days;
+    }
   }
   
-  // معدل آخر 3 استهلاكات > 11 -> عالي مرفوض
-  if (avgLast3Consumption !== null && avgLast3Consumption > 11) {
-    return { code: 6, ...AUDIT_STATUS[6], adjustedDiff };
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 4. التحقق من "عالي مرفوض" (المعدل اليومي > 300)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (adjustedDailyRate !== null && adjustedDailyRate > 300) {
+    return { code: 6, ...AUDIT_STATUS[6], adjustedDiff, adjustedDailyRate };
   }
   
-  // المعدل اليومي > 300 -> عالي مرفوض (جميع الأصناف)
-  if (dailyRate !== null && dailyRate > 300) {
-    return { code: 6, ...AUDIT_STATUS[6], adjustedDiff };
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 5. التحقق من "عالي" (المعدل اليومي > 150)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (adjustedDailyRate !== null && adjustedDailyRate > 150) {
+    return { code: 7, ...AUDIT_STATUS[7], adjustedDiff, adjustedDailyRate };
   }
   
-  // الصنف المنزلي (1 أو 21) والمعدل اليومي > 150 -> عالي
-  const isResidential = custCode === 1 || custCode === 21;
-  if (isResidential && dailyRate !== null && dailyRate > 150) {
-    return { code: 7, ...AUDIT_STATUS[7], adjustedDiff };
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 6. إذا كانت دورة بدون عالي/عالي مرفوض
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  if (isCycle) {
+    return { code: 8, ...AUDIT_STATUS[8], adjustedDiff, adjustedDailyRate };
   }
   
-  return { code: 0, ...AUDIT_STATUS[0], adjustedDiff };
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 7. لا يوجد أي مشكلة - مقبول
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  return { code: 0, ...AUDIT_STATUS[0], adjustedDiff, adjustedDailyRate };
 }
 
 export async function POST() {
@@ -173,7 +192,9 @@ export async function POST() {
       diff: number | null;
       days: number | null;
       dailyRate: number | null;
-      avgLast3Consum: number | null;
+      rate1: number | null;
+      rate2: number | null;
+      rate3: number | null;
       subscriberName: string | null;
       meterNo: string | null;
       sector: number | null;
@@ -202,18 +223,20 @@ export async function POST() {
       // الفرق بين الحالية والسابقة (الاستهلاك)
       let diff = (currentRead !== null && prevRead !== null) ? currentRead - prevRead : null;
       const days = calculateDays(prevDate, currentDate);
+      // المعدل اليومي الأولي (قد يكون سالباً في حالة الدورة)
       const dailyRate = (diff !== null && days !== null && days > 0) ? diff / days : null;
       
-      // معدل آخر 3 استهلاكات
-      const avgLast3Consumption = calculateAvgLast3Consumption(master);
+      // معدلات الاستهلاك الثلاثة السابقة
+      const { rate1, rate2, rate3 } = calculateConsumptionRates(master);
       
       // صنف المشترك
       const custCode = input.custCode ?? master?.custCode ?? null;
 
-      const status = determineStatus(currentRead, currentDate, prevRead, prevDate, diff, dailyRate, avgLast3Consumption, custCode);
+      const status = determineStatus(currentRead, currentDate, prevRead, prevDate, diff, days, dailyRate);
       
-      // استخدام الفرق المعدل (بعد إضافة 99999 للدورة)
+      // استخدام القيم المعدلة من التدقيق
       const adjustedDiff = status.adjustedDiff;
+      const adjustedDailyRate = status.adjustedDailyRate;
 
       auditRecords.push({
         accountNo: input.accountNo,
@@ -223,8 +246,10 @@ export async function POST() {
         prevDate,
         diff: adjustedDiff,
         days,
-        dailyRate,
-        avgLast3Consum: avgLast3Consumption,
+        dailyRate: adjustedDailyRate,
+        rate1,
+        rate2,
+        rate3,
         subscriberName: null, // تم حذف اسم المشترك
         meterNo: master?.meter?.toString() || null,
         sector: master?.sector ?? (input.sector as number) ?? null,
@@ -252,8 +277,11 @@ export async function POST() {
 
     const stats = {
       total: auditCount,
-      accepted: await prisma.auditRecord.count({ where: { isAccepted: true } }),
+      accepted: await prisma.auditRecord.count({ where: { statusCode: 0 } }),
       needsReview: await prisma.auditRecord.count({ where: { needsReview: true } }),
+      high: await prisma.auditRecord.count({ where: { statusCode: 7 } }),
+      highRejected: await prisma.auditRecord.count({ where: { statusCode: 6 } }),
+      cycle: await prisma.auditRecord.count({ where: { statusCode: 8 } }),
     };
 
     return NextResponse.json({
@@ -286,8 +314,11 @@ export async function GET(request: NextRequest) {
     // فلتر الحالة
     if (statusCode === 'needsReview') {
       where.needsReview = true;
-    } else if (statusCode) {
-      where.statusCode = parseInt(statusCode);
+    } else if (statusCode && statusCode !== 'all') {
+      const code = parseInt(statusCode);
+      if (!isNaN(code)) {
+        where.statusCode = code;
+      }
     }
     
     if (enterName) where.enterName = enterName;
@@ -300,9 +331,20 @@ export async function GET(request: NextRequest) {
     // تحديد ترتيب الفرز
     let orderBy: Record<string, unknown> = { statusCode: 'asc' };
     if (sort === 'accountNo') orderBy = { accountNo: 'asc' };
+    else if (sort === 'accountNo-desc') orderBy = { accountNo: 'desc' };
+    else if (sort === 'prevRead') orderBy = { prevRead: 'asc' };
+    else if (sort === 'prevRead-desc') orderBy = { prevRead: 'desc' };
+    else if (sort === 'currentRead') orderBy = { currentRead: 'asc' };
+    else if (sort === 'currentRead-desc') orderBy = { currentRead: 'desc' };
     else if (sort === 'dailyRate') orderBy = { dailyRate: 'desc' };
+    else if (sort === 'dailyRate-desc') orderBy = { dailyRate: 'asc' };
     else if (sort === 'diff') orderBy = { diff: 'desc' };
+    else if (sort === 'diff-desc') orderBy = { diff: 'asc' };
     else if (sort === 'days') orderBy = { days: 'desc' };
+    else if (sort === 'days-desc') orderBy = { days: 'asc' };
+    else if (sort === 'enterName') orderBy = { enterName: 'asc' };
+    else if (sort === 'enterName-desc') orderBy = { enterName: 'desc' };
+    else if (sort === 'statusCode-desc') orderBy = { statusCode: 'desc' };
     else orderBy = { statusCode: 'asc' };
 
     const total = await prisma.auditRecord.count({ where });

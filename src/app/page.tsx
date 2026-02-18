@@ -44,7 +44,8 @@ import {
   Eye,
   FileText,
   Receipt,
-  Printer
+  Printer,
+  RefreshCw
 } from 'lucide-react'
 
 interface Stats {
@@ -165,7 +166,9 @@ interface AuditRecord {
   diff: number | null
   days: number | null
   dailyRate: number | null
-  avgLast3Consum: number | null
+  rate1: number | null
+  rate2: number | null
+  rate3: number | null
   subscriberName: string | null
   enterName: string | null
   statusCode: number
@@ -174,14 +177,15 @@ interface AuditRecord {
 }
 
 const statusColors: Record<number, string> = {
-  0: 'bg-green-100 text-green-700 border-green-200',
-  1: 'bg-gray-100 text-gray-700 border-gray-200',
-  2: 'bg-red-100 text-red-700 border-red-200',
-  6: 'bg-red-200 text-red-800 border-red-300',
-  7: 'bg-amber-100 text-amber-700 border-amber-200',
-  8: 'bg-purple-100 text-purple-700 border-purple-200',
-  12: 'bg-pink-100 text-pink-700 border-pink-200',
-  14: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  0: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  1: 'bg-slate-100 text-slate-600 border border-slate-200',
+  2: 'bg-red-50 text-red-700 border border-red-200',
+  6: 'bg-red-100 text-red-800 border border-red-300',
+  7: 'bg-amber-50 text-amber-700 border border-amber-200',
+  8: 'bg-violet-50 text-violet-700 border border-violet-200',
+  11: 'bg-yellow-50 text-yellow-700 border border-yellow-200',
+  12: 'bg-gray-100 text-gray-600 border border-gray-200',
+  14: 'bg-blue-50 text-blue-700 border border-blue-200',
 }
 
 // MDB Preview types
@@ -254,7 +258,7 @@ export default function Home() {
   // Audit state
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([])
   const [auditPagination, setAuditPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 })
-  const [auditStats, setAuditStats] = useState<{total: number; accepted: number; needsReview: number} | null>(null)
+  const [auditStats, setAuditStats] = useState<{total: number; accepted: number; needsReview: number; high: number; highRejected: number; cycle: number} | null>(null)
   const [auditFilter, setAuditFilter] = useState('all')
   const [auditSearch, setAuditSearch] = useState('')
   const [auditSort, setAuditSort] = useState('statusCode')
@@ -513,7 +517,6 @@ export default function Home() {
         setAuditStats(data.stats)
         loadStats()
         setActiveTab('audit')
-        loadAuditData(1)
       } else {
         setError(data.error || 'حدث خطأ')
       }
@@ -530,7 +533,7 @@ export default function Home() {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: '50',
+        limit: '99999', // جلب جميع السجلات
         statusCode: auditFilter,
         search: auditSearch,
         sort: auditSort
@@ -542,6 +545,17 @@ export default function Home() {
       if (data.success) {
         setAuditRecords(data.records)
         setAuditPagination(data.pagination)
+        // تحديث الإحصائيات من البيانات
+        if (data.records.length > 0) {
+          setAuditStats({
+            total: data.records.length,
+            accepted: data.records.filter((r: AuditRecord) => r.statusCode === 0).length,
+            needsReview: data.records.filter((r: AuditRecord) => r.needsReview).length,
+            high: data.records.filter((r: AuditRecord) => r.statusCode === 7).length,
+            highRejected: data.records.filter((r: AuditRecord) => r.statusCode === 6).length,
+            cycle: data.records.filter((r: AuditRecord) => r.statusCode === 8).length,
+          })
+        }
       }
     } catch (e) {
       console.error('Error:', e)
@@ -574,6 +588,32 @@ export default function Home() {
     const params = new URLSearchParams({ statusCode: auditFilter === 'all' ? '' : auditFilter })
     window.open(`/api/export-audit?${params}`, '_blank')
   }, [auditFilter])
+
+  // Delete inputs
+  const deleteInputs = useCallback(async () => {
+    if (!confirm('هل أنت متأكد من حذف جميع القراءات؟ سيتم حذف سجلات التدقيق أيضاً.')) return
+    
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/delete-inputs', { method: 'POST' })
+      const data = await res.json()
+
+      if (data.success) {
+        setSuccess(data.message)
+        setInputData([])
+        setAuditRecords([])
+        setAuditStats(null)
+        loadStats()
+      } else {
+        setError(data.error || 'حدث خطأ')
+      }
+    } catch (e) {
+      setError('حدث خطأ في الاتصال')
+    } finally {
+      setLoading(false)
+    }
+  }, [loadStats])
 
   useEffect(() => {
     loadStats()
@@ -1315,6 +1355,10 @@ export default function Home() {
                         </SelectContent>
                       </Select>
                     )}
+                    <Button variant="destructive" size="sm" onClick={deleteInputs} disabled={loading}>
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      <span className="me-1">حذف القراءات</span>
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1487,7 +1531,7 @@ export default function Home() {
                       <div className="relative">
                         <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <Input
-                          placeholder="بحث برقم الحساب أو الاسم..."
+                          placeholder="بحث برقم الحساب..."
                           value={auditSearch}
                           onChange={(e) => setAuditSearch(e.target.value)}
                           className="ps-10"
@@ -1508,52 +1552,66 @@ export default function Home() {
                         <SelectItem value="8">دورة</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Select value={auditSort} onValueChange={setAuditSort}>
-                      <SelectTrigger className="w-40">
-                        <SelectValue placeholder="الفرز" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="statusCode">حسب الحالة</SelectItem>
-                        <SelectItem value="accountNo">حسب الحساب</SelectItem>
-                        <SelectItem value="dailyRate">حسب المعدل اليومي</SelectItem>
-                        <SelectItem value="diff">حسب الفرق</SelectItem>
-                        <SelectItem value="days">حسب الأيام</SelectItem>
-                      </SelectContent>
-                    </Select>
                     <Button variant="outline" size="sm" onClick={handleExport}>
                       <Download className="h-4 w-4 me-1" />
                       تصدير
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => window.print()}>
+                    <Button variant="outline" size="sm" onClick={() => {
+                      const params = new URLSearchParams();
+                      if (auditFilter !== 'all') params.append('statusCode', auditFilter);
+                      if (auditSearch) params.append('search', auditSearch);
+                      window.open(`/api/print-audit?${params.toString()}`, '_blank');
+                    }}>
                       <Printer className="h-4 w-4 me-1" />
                       طباعة
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={runAudit} disabled={loading}>
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      <span className="me-1">إعادة التدقيق</span>
                     </Button>
                   </div>
                 </CardContent>
               </Card>
 
-              {auditStats && (
-                <div className="grid grid-cols-3 gap-4">
-                  <Card className="bg-green-50 border-green-200">
-                    <CardContent className="py-3 text-center">
-                      <p className="text-2xl font-bold text-green-700">{auditStats.accepted.toLocaleString('ar-SA')}</p>
-                      <p className="text-sm text-green-600">مقبول</p>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-amber-50 border-amber-200">
-                    <CardContent className="py-3 text-center">
-                      <p className="text-2xl font-bold text-amber-700">{auditStats.needsReview.toLocaleString('ar-SA')}</p>
-                      <p className="text-sm text-amber-600">مراجعة</p>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-blue-50 border-blue-200">
-                    <CardContent className="py-3 text-center">
-                      <p className="text-2xl font-bold text-blue-700">{auditStats.total.toLocaleString('ar-SA')}</p>
-                      <p className="text-sm text-blue-600">إجمالي</p>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+              {/* بطاقات الإحصائيات */}
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                <Card className="border-slate-200 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setAuditFilter('all')}>
+                  <CardContent className="py-3 text-center">
+                    <p className="text-2xl font-bold text-slate-700">{auditStats?.total?.toLocaleString('ar-SA') || 0}</p>
+                    <p className="text-xs text-slate-500">إجمالي</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-emerald-200 bg-emerald-50/50 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setAuditFilter('0')}>
+                  <CardContent className="py-3 text-center">
+                    <p className="text-2xl font-bold text-emerald-600">{auditStats?.accepted?.toLocaleString('ar-SA') || 0}</p>
+                    <p className="text-xs text-emerald-600">مقبول</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-amber-200 bg-amber-50/50 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setAuditFilter('7')}>
+                  <CardContent className="py-3 text-center">
+                    <p className="text-2xl font-bold text-amber-600">{auditStats?.high?.toLocaleString('ar-SA') || 0}</p>
+                    <p className="text-xs text-amber-600">عالي</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-red-200 bg-red-50/50 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setAuditFilter('6')}>
+                  <CardContent className="py-3 text-center">
+                    <p className="text-2xl font-bold text-red-600">{auditStats?.highRejected?.toLocaleString('ar-SA') || 0}</p>
+                    <p className="text-xs text-red-600">عالي مرفوض</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-violet-200 bg-violet-50/50 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setAuditFilter('8')}>
+                  <CardContent className="py-3 text-center">
+                    <p className="text-2xl font-bold text-violet-600">{auditStats?.cycle?.toLocaleString('ar-SA') || 0}</p>
+                    <p className="text-xs text-violet-600">دورة</p>
+                  </CardContent>
+                </Card>
+                <Card className="border-slate-200 bg-slate-50/50 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setAuditFilter('needsReview')}>
+                  <CardContent className="py-3 text-center">
+                    <p className="text-2xl font-bold text-slate-600">{auditStats?.needsReview?.toLocaleString('ar-SA') || 0}</p>
+                    <p className="text-xs text-slate-600">مراجعة</p>
+                  </CardContent>
+                </Card>
+              </div>
 
               <Card className="shadow-sm">
                 <CardContent className="p-0">
@@ -1562,40 +1620,84 @@ export default function Home() {
                       <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
                     </div>
                   ) : (
-                    <ScrollArea className="h-[500px]">
+                    <ScrollArea className="h-[70vh]">
                       <Table>
                         <TableHeader className="sticky top-0 bg-slate-100 z-10 shadow-sm">
                           <TableRow>
-                            <TableHead className="font-bold whitespace-nowrap">#</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap">رقم الحساب</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap bg-purple-50">القراءة السابقة</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap bg-purple-50">تاريخ السابقة</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap bg-amber-50">القراءة الحالية</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap bg-amber-50">تاريخ الحالية</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap">الفرق</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap">الأيام</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap">معدل يومي</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap">معدل 3 استهلاكات</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap">الموظف</TableHead>
-                            <TableHead className="font-bold whitespace-nowrap">الحالة</TableHead>
+                            <TableHead className="font-bold whitespace-nowrap text-slate-500">#</TableHead>
+                            <TableHead 
+                              className={`font-bold whitespace-nowrap cursor-pointer hover:bg-blue-100 transition-colors select-none text-blue-600 ${auditSort.includes('accountNo') ? 'bg-blue-100' : ''}`}
+                              onClick={() => setAuditSort(auditSort === 'accountNo' ? 'accountNo-desc' : 'accountNo')}
+                            >
+                              رقم الحساب {auditSort === 'accountNo' ? '▲' : auditSort === 'accountNo-desc' ? '▼' : ''}
+                            </TableHead>
+                            <TableHead 
+                              className={`font-bold whitespace-nowrap cursor-pointer hover:bg-purple-100 transition-colors select-none text-purple-600 ${auditSort.includes('prevRead') ? 'bg-purple-100' : ''}`}
+                              onClick={() => setAuditSort(auditSort === 'prevRead' ? 'prevRead-desc' : 'prevRead')}
+                            >
+                              القراءة السابقة {auditSort === 'prevRead' ? '▲' : auditSort === 'prevRead-desc' ? '▼' : ''}
+                            </TableHead>
+                            <TableHead className="font-bold whitespace-nowrap text-purple-500">تاريخ السابقة</TableHead>
+                            <TableHead 
+                              className={`font-bold whitespace-nowrap cursor-pointer hover:bg-orange-100 transition-colors select-none text-orange-600 ${auditSort.includes('currentRead') ? 'bg-orange-100' : ''}`}
+                              onClick={() => setAuditSort(auditSort === 'currentRead' ? 'currentRead-desc' : 'currentRead')}
+                            >
+                              القراءة الحالية {auditSort === 'currentRead' ? '▲' : auditSort === 'currentRead-desc' ? '▼' : ''}
+                            </TableHead>
+                            <TableHead className="font-bold whitespace-nowrap text-orange-500">تاريخ الحالية</TableHead>
+                            <TableHead 
+                              className={`font-bold whitespace-nowrap cursor-pointer hover:bg-emerald-100 transition-colors select-none text-emerald-600 ${auditSort.includes('diff') ? 'bg-emerald-100' : ''}`}
+                              onClick={() => setAuditSort(auditSort === 'diff' ? 'diff-desc' : 'diff')}
+                            >
+                              الاستهلاك {auditSort === 'diff' ? '▲' : auditSort === 'diff-desc' ? '▼' : ''}
+                            </TableHead>
+                            <TableHead 
+                              className={`font-bold whitespace-nowrap cursor-pointer hover:bg-cyan-100 transition-colors select-none text-cyan-600 ${auditSort.includes('days') ? 'bg-cyan-100' : ''}`}
+                              onClick={() => setAuditSort(auditSort === 'days' ? 'days-desc' : 'days')}
+                            >
+                              المدة {auditSort === 'days' ? '▲' : auditSort === 'days-desc' ? '▼' : ''}
+                            </TableHead>
+                            <TableHead 
+                              className={`font-bold whitespace-nowrap cursor-pointer hover:bg-sky-100 transition-colors select-none text-sky-600 ${auditSort.includes('dailyRate') ? 'bg-sky-100' : ''}`}
+                              onClick={() => setAuditSort(auditSort === 'dailyRate' ? 'dailyRate-desc' : 'dailyRate')}
+                            >
+                              المعدل {auditSort === 'dailyRate' ? '▲' : auditSort === 'dailyRate-desc' ? '▼' : ''}
+                            </TableHead>
+                            <TableHead className="font-bold whitespace-nowrap text-sky-500 bg-sky-50">المعدل 1</TableHead>
+                            <TableHead className="font-bold whitespace-nowrap text-sky-500 bg-sky-50">المعدل 2</TableHead>
+                            <TableHead className="font-bold whitespace-nowrap text-sky-500 bg-sky-50">المعدل 3</TableHead>
+                            <TableHead 
+                              className={`font-bold whitespace-nowrap cursor-pointer hover:bg-pink-100 transition-colors select-none text-pink-600 ${auditSort.includes('enterName') ? 'bg-pink-100' : ''}`}
+                              onClick={() => setAuditSort(auditSort === 'enterName' ? 'enterName-desc' : 'enterName')}
+                            >
+                              الموظف {auditSort === 'enterName' ? '▲' : auditSort === 'enterName-desc' ? '▼' : ''}
+                            </TableHead>
+                            <TableHead 
+                              className={`font-bold whitespace-nowrap cursor-pointer hover:bg-red-100 transition-colors select-none text-red-600 ${auditSort.includes('statusCode') ? 'bg-red-100' : ''}`}
+                              onClick={() => setAuditSort(auditSort === 'statusCode' ? 'statusCode-desc' : 'statusCode')}
+                            >
+                              الحالة {auditSort === 'statusCode' ? '▲' : auditSort === 'statusCode-desc' ? '▼' : ''}
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {auditRecords.map((r, idx) => (
                             <TableRow key={r.id} className="hover:bg-slate-50">
                               <TableCell className="text-slate-400">{(auditPagination.page - 1) * 50 + idx + 1}</TableCell>
-                              <TableCell className="font-mono text-sm">{r.accountNo}</TableCell>
-                              <TableCell className="bg-purple-50/50">{r.prevRead?.toLocaleString('ar-SA') || '-'}</TableCell>
-                              <TableCell className="bg-purple-50/50">{r.prevDate || '-'}</TableCell>
-                              <TableCell className="bg-amber-50/50">{r.currentRead?.toLocaleString('ar-SA') || '-'}</TableCell>
-                              <TableCell className="bg-amber-50/50">{r.currentDate || '-'}</TableCell>
-                              <TableCell className={r.diff && r.diff < 0 ? 'text-red-600 font-medium' : ''}>
+                              <TableCell className="font-mono text-sm font-medium text-slate-700">{r.accountNo}</TableCell>
+                              <TableCell className="text-slate-600">{r.prevRead?.toLocaleString('ar-SA') || '-'}</TableCell>
+                              <TableCell className="text-slate-500 text-sm">{r.prevDate || '-'}</TableCell>
+                              <TableCell className="text-slate-600">{r.currentRead?.toLocaleString('ar-SA') || '-'}</TableCell>
+                              <TableCell className="text-slate-500 text-sm">{r.currentDate || '-'}</TableCell>
+                              <TableCell className={`${r.diff && r.diff < 0 ? 'text-red-600 font-bold' : 'text-slate-600'}`}>
                                 {r.diff?.toLocaleString('ar-SA') || '-'}
                               </TableCell>
-                              <TableCell>{r.days || '-'}</TableCell>
-                              <TableCell>{r.dailyRate?.toFixed(1) || '-'}</TableCell>
-                              <TableCell>{r.avgLast3Consum?.toFixed(1) || '-'}</TableCell>
-                              <TableCell>{r.enterName || '-'}</TableCell>
+                              <TableCell className="text-slate-600">{r.days || '-'}</TableCell>
+                              <TableCell className="text-sky-600 font-medium">{r.dailyRate ? Math.round(r.dailyRate) : '-'}</TableCell>
+                              <TableCell className="text-sky-500">{r.rate1 ? Math.round(r.rate1) : '-'}</TableCell>
+                              <TableCell className="text-sky-500">{r.rate2 ? Math.round(r.rate2) : '-'}</TableCell>
+                              <TableCell className="text-sky-500">{r.rate3 ? Math.round(r.rate3) : '-'}</TableCell>
+                              <TableCell className="text-slate-600">{r.enterName || '-'}</TableCell>
                               <TableCell>
                                 <Badge className={statusColors[r.statusCode] || 'bg-gray-100'}>
                                   {r.statusDesc}

@@ -8,25 +8,20 @@ datasource db {
 }
 
 model AuditRecord {
-  id             String   @id @default(cuid())
+  id             String   @id
   accountNo      String
-
-  // القراءة الحالية (من input)
   currentRead    Int?
   currentDate    String?
-
-  // القراءة اللاحقة (من master.prevRead)
   lastRead       Int?
   lastDate       String?
-
-  // القراءة السابقة (من master.lastRead)
   prevRead       Int?
   prevDate       String?
-
   diff           Int?
   days           Int?
   dailyRate      Float?
-  avgLast3Consum Float?   // معدل آخر 3 استهلاكات
+  rate1          Float?
+  rate2          Float?
+  rate3          Float?
   subscriberName String?
   meterNo        String?
   sector         Int?
@@ -40,16 +35,16 @@ model AuditRecord {
   needsReview    Boolean  @default(false)
   notes          String?
   createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  updatedAt      DateTime
 
-  @@index([sector])
-  @@index([enterName])
-  @@index([statusCode])
   @@index([accountNo])
+  @@index([statusCode])
+  @@index([enterName])
+  @@index([sector])
 }
 
 model Cobill {
-  id         String   @id @default(cuid())
+  id         String   @id
   accountNo  String
   name       String?
   serialNo   Int?
@@ -88,21 +83,21 @@ model Cobill {
 }
 
 model CodeRem {
-  id        String   @id @default(cuid())
+  id        String   @id
   code      Int      @unique
   desc      String
   createdAt DateTime @default(now())
 }
 
 model CustType {
-  id        String   @id @default(cuid())
+  id        String   @id
   code      Int      @unique
   desc      String
   createdAt DateTime @default(now())
 }
 
 model ImportedFile {
-  id          String   @id @default(cuid())
+  id          String   @id
   fileName    String
   fileSize    Int
   fileType    String
@@ -112,7 +107,7 @@ model ImportedFile {
 }
 
 model Input {
-  id           String   @id @default(cuid())
+  id           String   @id
   accountNo    String
   type         Int?
   read         Int?
@@ -170,12 +165,12 @@ model Input {
   createdAt    DateTime @default(now())
   Master       Master?  @relation(fields: [masterId], references: [id])
 
-  @@index([enterName])
   @@index([accountNo])
+  @@index([enterName])
 }
 
 model Master {
-  id            String   @id @default(cuid())
+  id            String   @id
   accountNo     String   @unique
   oldAccount    Float?
   oldAccountAgg Float?
@@ -245,18 +240,18 @@ model Master {
   overType      Float?
   overTypeN     Int?
   createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  updatedAt     DateTime
   Cobill        Cobill[]
   Input         Input[]
   Output        Output[]
 
-  @@index([sect])
-  @@index([region])
   @@index([accountNo])
+  @@index([region])
+  @@index([sect])
 }
 
 model Output {
-  id         String   @id @default(cuid())
+  id         String   @id
   accountNo  String
   name       String?
   read       Float?
