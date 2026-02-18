@@ -165,6 +165,7 @@ interface AuditRecord {
   diff: number | null
   days: number | null
   dailyRate: number | null
+  avgLast3Consum: number | null
   subscriberName: string | null
   enterName: string | null
   statusCode: number
@@ -1574,6 +1575,7 @@ export default function Home() {
                             <TableHead className="font-bold whitespace-nowrap">الفرق</TableHead>
                             <TableHead className="font-bold whitespace-nowrap">الأيام</TableHead>
                             <TableHead className="font-bold whitespace-nowrap">معدل يومي</TableHead>
+                            <TableHead className="font-bold whitespace-nowrap">معدل 3 استهلاكات</TableHead>
                             <TableHead className="font-bold whitespace-nowrap">الموظف</TableHead>
                             <TableHead className="font-bold whitespace-nowrap">الحالة</TableHead>
                           </TableRow>
@@ -1592,6 +1594,7 @@ export default function Home() {
                               </TableCell>
                               <TableCell>{r.days || '-'}</TableCell>
                               <TableCell>{r.dailyRate?.toFixed(1) || '-'}</TableCell>
+                              <TableCell>{r.avgLast3Consum?.toFixed(1) || '-'}</TableCell>
                               <TableCell>{r.enterName || '-'}</TableCell>
                               <TableCell>
                                 <Badge className={statusColors[r.statusCode] || 'bg-gray-100'}>

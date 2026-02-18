@@ -173,6 +173,7 @@ export async function POST() {
       diff: number | null;
       days: number | null;
       dailyRate: number | null;
+      avgLast3Consum: number | null;
       subscriberName: string | null;
       meterNo: string | null;
       sector: number | null;
@@ -223,6 +224,7 @@ export async function POST() {
         diff: adjustedDiff,
         days,
         dailyRate,
+        avgLast3Consum: avgLast3Consumption,
         subscriberName: null, // تم حذف اسم المشترك
         meterNo: master?.meter?.toString() || null,
         sector: master?.sector ?? (input.sector as number) ?? null,

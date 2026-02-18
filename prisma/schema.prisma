@@ -26,6 +26,7 @@ model AuditRecord {
   diff           Int?
   days           Int?
   dailyRate      Float?
+  avgLast3Consum Float?   // معدل آخر 3 استهلاكات
   subscriberName String?
   meterNo        String?
   sector         Int?
