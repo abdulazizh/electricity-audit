@@ -25,6 +25,10 @@ export async function GET(request: NextRequest) {
       where.sector = parseInt(sector);
     }
 
+    // جلب أنواع المشتركين
+    const custTypes = await prisma.custType.findMany();
+    const custTypeMap = new Map(custTypes.map(ct => [ct.code, ct.desc]));
+
     // جلب البيانات
     const [data, total] = await Promise.all([
       prisma.master.findMany({
@@ -36,10 +40,22 @@ export async function GET(request: NextRequest) {
       prisma.master.count({ where })
     ]);
 
+    // إضافة وصف الصنف للبيانات
+    const dataWithCustDesc = data.map(r => ({
+      ...r,
+      custDesc: r.cust ? custTypeMap.get(Math.round(r.cust)) || null : null
+    }));
+
     // إحصائيات
     const stats = await prisma.master.aggregate({
       _count: { id: true },
-      _avg: { avgConsum: true, lastRead: true }
+      _avg: { avgConsum: true, lastRead: true },
+      _sum: { 
+        payment: true, 
+        outs: true, 
+        outsBf: true, 
+        outsBef17: true 
+      }
     });
 
     // توزيع حسب القطاع
@@ -51,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data,
+      data: dataWithCustDesc,
       pagination: {
         page,
         limit,
@@ -61,7 +77,12 @@ export async function GET(request: NextRequest) {
       stats: {
         total: stats._count.id,
         avgConsum: stats._avg.avgConsum?.toFixed(1) || 0,
-        avgLastRead: stats._avg.lastRead?.toFixed(0) || 0
+        avgLastRead: stats._avg.lastRead?.toFixed(0) || 0,
+        totalPayment: stats._sum.payment || 0,
+        totalOuts: stats._sum.outs || 0,
+        totalOutsBf: stats._sum.outsBf || 0,
+        totalOutsBef17: stats._sum.outsBef17 || 0,
+        totalDebts: (stats._sum.outs || 0) + (stats._sum.outsBf || 0) + (stats._sum.outsBef17 || 0)
       },
       bySector: bySector.filter(s => s.sector !== null).map(s => ({
         sector: s.sector,

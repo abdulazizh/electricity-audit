@@ -118,6 +118,8 @@ interface MasterRecord {
   // حقول إضافية
   avgConsum: number | null
   sector: number | null
+  // وصف الصنف
+  custDesc: string | null
 }
 
 interface CobillRecord {
@@ -144,6 +146,12 @@ interface OutputRecord {
   type: number | null
   enterName: string | null
   sector: number | null
+  amount: number | null
+  amountBef: number | null
+  amountAll: number | null
+  outs: number | null
+  closeRead: number | null
+  closeDate: string | null
 }
 
 interface InputRecord {
@@ -230,7 +238,7 @@ export default function Home() {
   const [masterData, setMasterData] = useState<MasterRecord[]>([])
   const [masterPagination, setMasterPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 })
   const [masterSearch, setMasterSearch] = useState('')
-  const [masterStats, setMasterStats] = useState<{total: number; avgConsum: string; avgLastRead: string} | null>(null)
+  const [masterStats, setMasterStats] = useState<{total: number; avgConsum: string; avgLastRead: string; totalPayment: number; totalOuts: number; totalOutsBf: number; totalOutsBef17: number; totalDebts: number} | null>(null)
   const [masterBySector, setMasterBySector] = useState<{sector: number | null; count: number}[]>([])
 
   // Cobill state
@@ -245,7 +253,10 @@ export default function Home() {
   const [outputSearch, setOutputSearch] = useState('')
   const [outputStats, setOutputStats] = useState<{total: number; avgConsum: string} | null>(null)
   const [outputByEmployee, setOutputByEmployee] = useState<{name: string; count: number}[]>([])
+  const [outputByType, setOutputByType] = useState<{type: number; count: number}[]>([])
   const [outputEmployeeFilter, setOutputEmployeeFilter] = useState('all')
+  const [outputTypeFilter, setOutputTypeFilter] = useState('all')
+  const [outputSort, setOutputSort] = useState('accountNo')
 
   // Input state
   const [inputData, setInputData] = useState<InputRecord[]>([])
@@ -458,7 +469,9 @@ export default function Home() {
         page: page.toString(),
         limit: '50',
         search: outputSearch,
-        enterName: outputEmployeeFilter === 'all' ? '' : outputEmployeeFilter
+        enterName: outputEmployeeFilter === 'all' ? '' : outputEmployeeFilter,
+        type: outputTypeFilter === 'all' ? '' : outputTypeFilter,
+        sort: outputSort
       })
 
       const res = await fetch(`/api/output?${params}`)
@@ -469,13 +482,14 @@ export default function Home() {
         setOutputPagination(data.pagination)
         setOutputStats(data.stats)
         setOutputByEmployee(data.byEmployee)
+        setOutputByType(data.byType)
       }
     } catch (e) {
       console.error('Error:', e)
     } finally {
       setLoading(false)
     }
-  }, [outputSearch, outputEmployeeFilter])
+  }, [outputSearch, outputEmployeeFilter, outputTypeFilter, outputSort])
 
   // Load input data
   const loadInputData = useCallback(async (page: number = 1) => {
@@ -637,6 +651,16 @@ export default function Home() {
       loadOutputData(1)
     }
   }, [activeTab, stats?.output, loadOutputData])
+
+  // Reload output when sort changes
+  useEffect(() => {
+    if (activeTab === 'output' && stats?.output) {
+      const timer = setTimeout(() => {
+        loadOutputData(1)
+      }, 300)
+      return () => clearTimeout(timer)
+    }
+  }, [outputSort])
 
   useEffect(() => {
     if (activeTab === 'inputs' && stats?.input) {
@@ -1012,23 +1036,6 @@ export default function Home() {
                 </div>
               )}
 
-              {masterBySector.length > 0 && (
-                <Card className="shadow-sm">
-                  <CardHeader className="py-3">
-                    <CardTitle className="text-sm">توزيع حسب القطاع</CardTitle>
-                  </CardHeader>
-                  <CardContent className="py-2">
-                    <div className="flex flex-wrap gap-2">
-                      {masterBySector.map(s => (
-                        <Badge key={s.sector as number} variant="outline" className="text-sm">
-                          قطاع {s.sector}: {s.count.toLocaleString('en-US')}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
               <Card className="shadow-sm">
                 <CardContent className="p-0">
                   {loading ? (
@@ -1036,71 +1043,43 @@ export default function Home() {
                       <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
                     </div>
                   ) : (
-                    <div className="flex flex-col h-[60vh]">
-                      {/* العناوين الثابتة */}
-                      <div className="flex-shrink-0 bg-slate-200 border-b-2 border-slate-400 shadow-md overflow-x-auto">
-                        <div className="grid grid-cols-25 gap-0 text-center text-xs font-bold min-w-[2500px]">
-                          <div className="p-2 text-slate-500 bg-slate-200">#</div>
-                          <div className="p-2 text-blue-600 bg-blue-50">رقم الحساب</div>
-                          <div className="p-2 text-blue-500 bg-blue-50">الحساب القديم</div>
-                          <div className="p-2 text-emerald-600 bg-emerald-50">الاسم</div>
-                          <div className="p-2 text-purple-600 bg-purple-50">المنطقة</div>
-                          <div className="p-2 text-purple-500 bg-purple-50">السجل</div>
-                          <div className="p-2 text-cyan-600 bg-cyan-50">الطور</div>
-                          <div className="p-2 text-amber-600 bg-amber-50">العنوان</div>
-                          <div className="p-2 text-amber-500 bg-amber-50">رقم العقار</div>
-                          <div className="p-2 text-pink-600 bg-pink-50">رقم المقياس</div>
-                          <div className="p-2 text-pink-500 bg-pink-50">تاريخ النصب</div>
-                          <div className="p-2 text-indigo-600 bg-indigo-50">معامل الضرب</div>
-                          <div className="p-2 text-indigo-500 bg-indigo-50">الصنف</div>
-                          <div className="p-2 text-violet-600 bg-violet-50">الاشتراك</div>
-                          <div className="p-2 text-blue-600 bg-blue-100">القراءة السابقة</div>
-                          <div className="p-2 text-blue-500 bg-blue-100">تاريخ السابقة</div>
-                          <div className="p-2 text-orange-600 bg-orange-50">القراءة اللاحقة</div>
-                          <div className="p-2 text-orange-500 bg-orange-50">تاريخ اللاحقة</div>
-                          <div className="p-2 text-emerald-600 bg-emerald-100">الفرق</div>
-                          <div className="p-2 text-slate-600 bg-slate-100">تاريخ الإصدار</div>
-                          <div className="p-2 text-red-600 bg-red-50">المبلغ</div>
-                          <div className="p-2 text-green-600 bg-green-50">آخر تسديد</div>
-                          <div className="p-2 text-green-500 bg-green-50">تاريخ التسديد</div>
-                          <div className="p-2 text-red-500 bg-red-100">الديون</div>
-                          <div className="p-2 text-slate-500 bg-slate-100">ملاحظات</div>
-                        </div>
-                      </div>
-                      {/* البيانات */}
-                      <div className="flex-1 overflow-y-auto overflow-x-auto">
-                        <div className="min-w-[2500px]">
+                    <div className="h-[70vh] overflow-auto border rounded-lg">
+                      <table className="w-full border-collapse text-xs">
+                        <thead className="sticky top-0 z-20 bg-slate-200 shadow-sm">
+                          <tr className="border-b-2 border-slate-400">
+                            <th className="font-bold whitespace-nowrap text-slate-500 bg-slate-200 text-center p-2">#</th>
+                            <th className="font-bold whitespace-nowrap text-blue-600 bg-blue-50 text-center p-2">رقم الحساب</th>
+                            <th className="font-bold whitespace-nowrap text-emerald-600 bg-emerald-50 text-center p-2">الاسم</th>
+                            <th className="font-bold whitespace-nowrap text-amber-600 bg-amber-50 text-center p-2">العنوان</th>
+                            <th className="font-bold whitespace-nowrap text-pink-600 bg-pink-50 text-center p-2">رقم المقياس</th>
+                            <th className="font-bold whitespace-nowrap text-indigo-600 bg-indigo-50 text-center p-2">الصنف</th>
+                            <th className="font-bold whitespace-nowrap text-violet-700 bg-violet-100 text-center p-2 border-2 border-violet-300">القراءة السابقة</th>
+                            <th className="font-bold whitespace-nowrap text-orange-700 bg-orange-100 text-center p-2 border-2 border-orange-300">القراءة اللاحقة</th>
+                            <th className="font-bold whitespace-nowrap text-emerald-700 bg-emerald-100 text-center p-2 border-2 border-emerald-300">الفرق</th>
+                            <th className="font-bold whitespace-nowrap text-red-600 bg-red-50 text-center p-2">الديون</th>
+                            <th className="font-bold whitespace-nowrap text-green-600 bg-green-50 text-center p-2">التسديد</th>
+                            <th className="font-bold whitespace-nowrap text-slate-500 bg-slate-100 text-center p-2">ملاحظات</th>
+                          </tr>
+                        </thead>
+                        <tbody>
                           {masterData.map((r, idx) => (
-                            <div key={r.id} className="grid grid-cols-25 gap-0 text-center text-xs border-b border-slate-100 hover:bg-slate-50">
-                              <div className="p-2 text-slate-400">{(masterPagination.page - 1) * 50 + idx + 1}</div>
-                              <div className="p-2 font-mono font-medium text-slate-700">{r.accountNo}</div>
-                              <div className="p-2 text-slate-600">{r.oldAccount?.toLocaleString('en-US') || '-'}</div>
-                              <div className="p-2 text-slate-600 truncate max-w-[120px]">{r.name || '-'}</div>
-                              <div className="p-2 text-slate-600">{r.region || '-'}</div>
-                              <div className="p-2 text-slate-600">{r.sect || '-'}</div>
-                              <div className="p-2 text-slate-600">{r.phase || '-'}</div>
-                              <div className="p-2 text-slate-600 truncate max-w-[100px]">{r.address || '-'}</div>
-                              <div className="p-2 text-slate-600">{r.houseNo || '-'}</div>
-                              <div className="p-2 text-slate-600">{r.meter?.toLocaleString('en-US') || '-'}</div>
-                              <div className="p-2 text-slate-500">{r.meterDate || '-'}</div>
-                              <div className="p-2 text-slate-600">{r.facter || '-'}</div>
-                              <div className="p-2 text-slate-600">{r.cust || '-'}</div>
-                              <div className="p-2 text-slate-600">{r.instalNo || '-'}</div>
-                              <div className="p-2 text-blue-600">{r.prevRead?.toLocaleString('en-US') || '-'}</div>
-                              <div className="p-2 text-slate-500">{r.prevDate || '-'}</div>
-                              <div className="p-2 text-orange-600">{r.lastRead?.toLocaleString('en-US') || '-'}</div>
-                              <div className="p-2 text-slate-500">{r.lastDate || '-'}</div>
-                              <div className="p-2 text-emerald-600 font-medium">{r.def?.toLocaleString('en-US') || '-'}</div>
-                              <div className="p-2 text-slate-500">{r.billDate || '-'}</div>
-                              <div className="p-2 text-red-600">{r.outs?.toLocaleString('en-US') || '-'}</div>
-                              <div className="p-2 text-green-600">{r.payment?.toLocaleString('en-US') || '-'}</div>
-                              <div className="p-2 text-slate-500">{r.payDate || '-'}</div>
-                              <div className="p-2 text-red-500">{r.prevOuts?.toLocaleString('en-US') || '-'}</div>
-                              <div className="p-2 text-slate-500 truncate max-w-[80px]">{r.note || '-'}</div>
-                            </div>
+                            <tr key={r.id} className="hover:bg-slate-50 border-b border-slate-100">
+                              <td className="text-center p-2 text-slate-400">{(masterPagination.page - 1) * 50 + idx + 1}</td>
+                              <td className="text-center p-2 font-mono font-medium text-slate-700">{r.accountNo}</td>
+                              <td className="text-center p-2 text-slate-600 truncate max-w-[120px]">{r.name || '-'}</td>
+                              <td className="text-center p-2 text-slate-600 truncate max-w-[100px]">{r.address || '-'}</td>
+                              <td className="text-center p-2 text-slate-600">{r.meter?.toLocaleString('en-US') || '-'}</td>
+                              <td className="text-center p-2 text-indigo-700 font-medium">{r.custDesc || r.cust || '-'}</td>
+                              <td className="text-center p-2 text-violet-700 font-bold bg-violet-50">{r.prevRead?.toLocaleString('en-US') || '-'}</td>
+                              <td className="text-center p-2 text-orange-700 font-bold bg-orange-50">{r.lastRead?.toLocaleString('en-US') || '-'}</td>
+                              <td className="text-center p-2 text-emerald-700 font-bold bg-emerald-50">{r.def?.toLocaleString('en-US') || '-'}</td>
+                              <td className="text-center p-2 text-red-600">{r.outs?.toLocaleString('en-US') || '-'}</td>
+                              <td className="text-center p-2 text-green-600">{r.payment?.toLocaleString('en-US') || '-'}</td>
+                              <td className="text-center p-2 text-slate-500 truncate max-w-[80px]">{r.note || '-'}</td>
+                            </tr>
                           ))}
-                        </div>
-                      </div>
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </CardContent>
@@ -1236,6 +1215,19 @@ export default function Home() {
                         <Input placeholder="بحث..." value={outputSearch} onChange={(e) => setOutputSearch(e.target.value)} className="ps-10" />
                       </div>
                     </div>
+                    {outputByType.length > 0 && (
+                      <Select value={outputTypeFilter} onValueChange={setOutputTypeFilter}>
+                        <SelectTrigger className="w-40">
+                          <SelectValue placeholder="جميع الأنواع" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">جميع الأنواع</SelectItem>
+                          {outputByType.map(t => (
+                            <SelectItem key={t.type} value={t.type.toString()}>نوع {t.type} ({t.count})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     {outputByEmployee.length > 0 && (
                       <Select value={outputEmployeeFilter} onValueChange={setOutputEmployeeFilter}>
                         <SelectTrigger className="w-48">
@@ -1277,37 +1269,43 @@ export default function Home() {
                       <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
                     </div>
                   ) : (
-                    <div className="flex flex-col h-[60vh]">
-                      {/* العناوين الثابتة */}
-                      <div className="flex-shrink-0 bg-slate-200 border-b-2 border-slate-400 shadow-md">
-                        <div className="grid grid-cols-9 gap-0 text-center text-sm font-bold">
-                          <div className="p-3 text-slate-500 bg-slate-200">#</div>
-                          <div className="p-3 text-blue-600 bg-blue-50">رقم الحساب</div>
-                          <div className="p-3 text-emerald-600 bg-emerald-50">الاسم</div>
-                          <div className="p-3 text-orange-600 bg-orange-50">القراءة</div>
-                          <div className="p-3 text-orange-500 bg-orange-50">تاريخها</div>
-                          <div className="p-3 text-purple-600 bg-purple-50">السابقة</div>
-                          <div className="p-3 text-cyan-600 bg-cyan-50">النوع</div>
-                          <div className="p-3 text-pink-600 bg-pink-50">الموظف</div>
-                          <div className="p-3 text-indigo-600 bg-indigo-50">القطاع</div>
-                        </div>
-                      </div>
-                      {/* البيانات */}
-                      <div className="flex-1 overflow-y-auto">
-                        {outputData.map((r, idx) => (
-                          <div key={r.id} className="grid grid-cols-9 gap-0 text-center text-sm border-b border-slate-100 hover:bg-slate-50">
-                            <div className="p-2 text-slate-400">{(outputPagination.page - 1) * 50 + idx + 1}</div>
-                            <div className="p-2 font-mono font-medium text-slate-700">{r.accountNo}</div>
-                            <div className="p-2 text-slate-600 truncate max-w-[120px]">{r.name || '-'}</div>
-                            <div className="p-2 text-orange-600">{r.read?.toLocaleString('en-US') || '-'}</div>
-                            <div className="p-2 text-slate-500">{r.readDate || '-'}</div>
-                            <div className="p-2 text-purple-600">{r.prevRead?.toLocaleString('en-US') || '-'}</div>
-                            <div className="p-2 text-slate-600">{r.type || '-'}</div>
-                            <div className="p-2 text-slate-600">{r.enterName || '-'}</div>
-                            <div className="p-2 text-slate-600">{r.sector || '-'}</div>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="h-[70vh] overflow-auto border rounded-lg">
+                      <table className="w-full border-collapse text-sm">
+                        <thead className="sticky top-0 z-20 bg-slate-200 shadow-sm">
+                          <tr className="border-b-2 border-slate-400">
+                            <th className="font-bold whitespace-nowrap text-slate-500 bg-slate-200 text-center p-2">#</th>
+                            <th className="font-bold whitespace-nowrap text-blue-600 bg-blue-50 text-center p-2">رقم الحساب</th>
+                            <th className="font-bold whitespace-nowrap text-emerald-600 bg-emerald-50 text-center p-2">الاسم</th>
+                            <th className="font-bold whitespace-nowrap text-orange-700 bg-orange-100 text-center p-2">القراءة</th>
+                            <th className="font-bold whitespace-nowrap text-violet-700 bg-violet-100 text-center p-2">السابقة</th>
+                            <th className="font-bold whitespace-nowrap text-cyan-600 bg-cyan-50 text-center p-2">النوع</th>
+                            <th className="font-bold whitespace-nowrap text-green-700 bg-green-100 text-center p-2 border-2 border-green-300">المبلغ</th>
+                            <th className="font-bold whitespace-nowrap text-red-600 bg-red-50 text-center p-2">الديون</th>
+                            <th className="font-bold whitespace-nowrap text-pink-600 bg-pink-50 text-center p-2">الموظف</th>
+                            <th className="font-bold whitespace-nowrap text-indigo-600 bg-indigo-50 text-center p-2">القطاع</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {outputData.map((r, idx) => (
+                            <tr key={r.id} className="hover:bg-slate-50 border-b border-slate-100">
+                              <td className="text-center p-2 text-slate-400">{(outputPagination.page - 1) * 50 + idx + 1}</td>
+                              <td className="text-center p-2 font-mono font-medium text-slate-700">{r.accountNo}</td>
+                              <td className="text-center p-2 text-slate-600 truncate max-w-[120px]">{r.name || '-'}</td>
+                              <td className="text-center p-2 text-orange-700 font-bold bg-orange-50">{r.read?.toLocaleString('en-US') || '-'}</td>
+                              <td className="text-center p-2 text-violet-700 font-bold bg-violet-50">{r.prevRead?.toLocaleString('en-US') || '-'}</td>
+                              <td className="text-center p-2">
+                                <Badge className={r.type === 5 ? 'bg-green-100 text-green-700 border border-green-300' : 'bg-slate-100 text-slate-600'}>
+                                  {r.type || '-'}
+                                </Badge>
+                              </td>
+                              <td className="text-center p-2 text-green-700 font-bold bg-green-50">{r.amount?.toLocaleString('en-US') || '-'}</td>
+                              <td className="text-center p-2 text-red-600">{r.outs?.toLocaleString('en-US') || '-'}</td>
+                              <td className="text-center p-2 text-slate-600">{r.enterName || '-'}</td>
+                              <td className="text-center p-2 text-slate-600">{r.sector || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </CardContent>
@@ -1551,6 +1549,41 @@ export default function Home() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* الإحصائيات المالية */}
+              <Card className="shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Receipt className="h-5 w-5 text-emerald-500" />
+                    الإحصائيات المالية
+                  </CardTitle>
+                  <CardDescription>مجموع المبالغ المدفوعة والديون</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div className="text-center p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                      <p className="text-2xl font-bold text-emerald-600">{masterStats?.totalPayment?.toLocaleString('en-US') || 0}</p>
+                      <p className="text-xs text-emerald-600">إجمالي المدفوعات</p>
+                    </div>
+                    <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
+                      <p className="text-2xl font-bold text-red-600">{masterStats?.totalDebts?.toLocaleString('en-US') || 0}</p>
+                      <p className="text-xs text-red-600">إجمالي الديون</p>
+                    </div>
+                    <div className="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
+                      <p className="text-2xl font-bold text-orange-600">{masterStats?.totalOuts?.toLocaleString('en-US') || 0}</p>
+                      <p className="text-xs text-orange-600">الديون الحالية</p>
+                    </div>
+                    <div className="text-center p-4 bg-amber-50 rounded-lg border border-amber-200">
+                      <p className="text-2xl font-bold text-amber-600">{masterStats?.totalOutsBf?.toLocaleString('en-US') || 0}</p>
+                      <p className="text-xs text-amber-600">ديون سابقة</p>
+                    </div>
+                    <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <p className="text-2xl font-bold text-yellow-600">{masterStats?.totalOutsBef17?.toLocaleString('en-US') || 0}</p>
+                      <p className="text-xs text-yellow-600">ديون قبل 2017</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* إحصائيات التدقيق */}
               {auditStats && (

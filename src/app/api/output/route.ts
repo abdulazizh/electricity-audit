@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const sector = searchParams.get('sector') || '';
     const enterName = searchParams.get('enterName') || '';
     const type = searchParams.get('type') || '';
+    const sort = searchParams.get('sort') || 'accountNo';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
     const skip = (page - 1) * limit;
@@ -35,13 +36,22 @@ export async function GET(request: NextRequest) {
       where.type = parseInt(type);
     }
 
+    // بناء ترتيب الفرز
+    let orderBy: Record<string, string> = {};
+    if (sort.endsWith('-desc')) {
+      const field = sort.replace('-desc', '');
+      orderBy[field] = 'desc';
+    } else {
+      orderBy[sort] = 'asc';
+    }
+
     // جلب البيانات
     const [data, total] = await Promise.all([
       prisma.output.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { accountNo: 'asc' }
+        orderBy
       }),
       prisma.output.count({ where })
     ]);
